@@ -76,8 +76,7 @@
   },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*",
-    "react-native-windows": "0.80.0-preview.10"
+    "react-native": "*"
   },
   "workspaces": [
     "example"
@@ -120,12 +119,5 @@
     "languages": "kotlin-objc",
     "type": "turbo-module",
     "version": "0.54.5"
-  },
-  "react-native-windows": {
-    "init-windows": {
-      "name": "ReactNativeFs",
-      "namespace": "ReactNativeFs",
-      "template": "old/uwp-cpp-lib"
-    }
   }
 }
