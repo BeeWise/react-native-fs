@@ -20,11 +20,17 @@ Mac (Catalyst), and Windows platforms.
 [![Sponsor](https://raw.githubusercontent.com/birdofpreyru/react-native-fs/master/.README/sponsor.svg)](https://github.com/sponsors/birdofpreyru)
 
 ### Sponsored By
+[<img width=36 src="https://avatars.githubusercontent.com/u/20762604?s=36&v=4" />](https://github.com/GNUGradyn)
 [<img width=36 src="https://avatars.githubusercontent.com/u/3375071?s=36&v=4" />](https://github.com/josmithua)
 [<img width=36 src="https://avatars.githubusercontent.com/u/10487241?s=36" />](https://github.com/Crare)
 
 ### [Contributors](https://github.com/birdofpreyru/react-native-fs/graphs/contributors)
 [<img width=36 src="https://avatars.githubusercontent.com/u/23295962?v=4&s=36" />](https://github.com/tumerorkun)
+[<img width=36 src="https://avatars.githubusercontent.com/u/11707729?v=4&s=36" />](https://github.com/gabrieldonadel)
+[<img width=36 src="https://avatars.githubusercontent.com/u/54612946?v=4&s=36" />](https://github.com/usama-liaqat)
+[<img width=36 src="https://avatars.githubusercontent.com/u/61206305?v=4&s=36" />](https://github.com/RayKay91)
+[<img width=36 src="https://avatars.githubusercontent.com/u/3824379?v=4&s=36" />](https://github.com/hsjoberg)
+[<img width=36 src="https://avatars.githubusercontent.com/u/5339870?v=4&s=36" />](https://github.com/dFelinger)
 [<img width=36 src="https://avatars.githubusercontent.com/u/54746036?v=4&s=36" />](https://github.com/tero-paananen)
 [<img width=36 src="https://avatars.githubusercontent.com/u/7615817?v=4&s=36" />](https://github.com/Alatius)
 [<img width=36 src="https://avatars.githubusercontent.com/u/20155143?v=4&s=36" />](https://github.com/euphbriggs)
@@ -32,7 +38,6 @@ Mac (Catalyst), and Windows platforms.
 [<img width=36 src="https://avatars.githubusercontent.com/u/11723093?v=4&s=36" />](https://github.com/Bengejd)
 [<img width=36 src="https://avatars.githubusercontent.com/u/48058861?v=4&s=36" />](https://github.com/meza-jhonathan)
 [<img width=36 src="https://avatars.githubusercontent.com/u/62384153?v=4&s=36" />](https://github.com/pcprinz)
-[<img width=36 src="https://avatars.githubusercontent.com/u/3824379?v=4&s=36" />](https://github.com/hsjoberg)
 [<img width=36 src="https://avatars.githubusercontent.com/u/12956672?v=4&s=36" />](https://github.com/christianchown)
 [<img width=36 src="https://avatars.githubusercontent.com/u/31921080?s=36" />](https://github.com/Yupeng-li)
 [<img width=36 src="https://avatars.githubusercontent.com/u/12350021?s=36" />](https://github.com/zenoxs)
@@ -60,6 +65,7 @@ Mac (Catalyst), and Windows platforms.
       the external files, shared directory.
     - [ExternalStorageDirectoryPath] &mdash; (Android) The absolute path to
       the external storage, shared directory.
+    - [FileProtectionKeys] &mdash; (iOS) File protection levels.
     - [LibraryDirectoryPath] &mdash; (iOS) The absolute path to
       the NSLibraryDirectory.
     - [MainBundlePath] &mdash; (non-Android) The absolute path to
@@ -137,8 +143,11 @@ Mac (Catalyst), and Windows platforms.
     - [DownloadProgressCallbackResultT] &mdash; The type of argument passed to
       the `progress` callback in [DownloadFileOptionsT].
     - [DownloadResultT] &mdash; Return type of [downloadFile()].
+    - [EncodingOptions] &mdash; [EncodingT] value provided directly,
+      or as a field of an option object.
     - [EncodingT] &mdash; Union of valid file encoding values.
     - [FileOptionsT] &mdash; Extra options for [copyFile()].
+    - [FileProtectionKeysT] &mdash; The type of [FileProtectionKeys] object.
     - [FSInfoResultT] &mdash; The type of result resolved by [getFSInfo()].
     - [MkdirOptionsT] &mdash; Extra options for [mkdir()].
     - [PickFileOptionsT] &mdash; Optional parameters for [pickFile()].
@@ -163,13 +172,28 @@ Mac (Catalyst), and Windows platforms.
 
 Just install & use:
 ```sh
-$ npm install --save @dr.pogodin/react-native-fs
+npm install --save @dr.pogodin/react-native-fs
 ```
 
-**Note**: Windows auto-link command (at least as it was needed for example project to install the lib hosted in the parent folder):
-```sh
-npx react-native autolink-windows --sln "windows\ReactNativeFsExample.sln" --proj "windows\ReactNativeFsExample\ReactNativeFsExample.vcxproj"
-```
+[Example App]: https://github.com/birdofpreyru/react-native-fs/tree/master/example
+
+Note, the library repository includes [Example App] with demonstration and tests
+of the library components.
+
+> **BEWARE:** As of the library v2.28.0, to run [Example App] on **Windows**
+> you'll need to explicitly install `react-native-windows` both into the example
+> app, and into the root library code; execute in the root of the library code:
+>  ```sh
+>  yarn add react-native-windows
+>  yarn example add react-native-windows
+>  ```
+> `react-native-windows` is not currently listed as a dependency in `package.json`
+> files because the latest `react-native-windows@0.82` breaks Android builds if
+> installed alongside the latest `react-native@0.84`.
+>
+> Also, the first attempt to build [Example App] for **Windows** currently
+> fails with various errors due to bugs in `react-native-windows`. These errors
+> magically disappear on the build re-try, which completes successfully.
 
 ## Project History & Roadmap
 [Project History & Roadmap]: #project-history--roadmap
@@ -413,7 +437,7 @@ const DocumentDirectoryPath: string;
 
 The absolute path to the document directory.
 
-**IMPORTANT**: `DocumentDirectoryPath` (iOS) will include an ID in the path that changes each build e.g `...Application/BCE32988-4C51-483B-892B-16671E3771C2/Documents`. 
+**IMPORTANT**: `DocumentDirectoryPath` (iOS) will include an ID in the path that changes each build e.g `...Application/BCE32988-4C51-483B-892B-16671E3771C2/Documents`.
 
 Use relative paths and resolve the full path at runtime to avoid files not being found on new builds.
 
@@ -454,6 +478,17 @@ const ExternalStorageDirectoryPath: string;
 The absolute path to the external storage, shared directory (android only).
 
 **BEWARE:** When using `ExternalStorageDirectoryPath` it's necessary to request permissions (on Android) to read and write on the external storage, here an example: [React Native Offical Doc](https://facebook.github.io/react-native/docs/permissionsandroid)
+
+### FileProtectionKeys
+[FileProtectionKeys]: #fileprotectionkeys
+```ts
+const FileProtectionKeys: FileProtectionKeysT;
+```
+**VERIFIED:** iOS. **NOT SUPPORTED:** Android, Windows.
+
+iOS-specific [file protection levels](https://developer.apple.com/documentation/foundation/fileprotectiontype).
+It is a [FileProtectionKeysT] object, which holds the values of four related
+constants.
 
 ### LibraryDirectoryPath
 [LibraryDirectoryPath]: #librarydirectorypath
@@ -511,14 +546,19 @@ least, on Android this constant does not have a slash in the end; but on iOS
 ### appendFile()
 [appendFile()]: #appendfile
 ```ts
-function appendFile(filepath: string, contents: string, encoding?: string): Promise<void>;
+function appendFile(
+  filepath: string,
+  data: ArrayBuffer | string,
+  encodingOrOptions?: EncodingOptions,
+): Promise<void> {
 ```
-**VERIFIED:** Android, iOS, macOS, Windows.
+**VERIFIED:** Android, iOS.
 
 Appends content to a file.
 - `filepath` &mdash; **string** &mdash; File path.
-- `contents` &mdash; **string** &mdash; The content to add.
-- `encoding` &mdash; [EncodingT] &mdash; Optional. Encoding.
+- `data` &mdash; [ArrayBuffer] | **string** &mdash; Data to append.
+- `encodingOrOptions` &mdash; [EncodingOptions] &mdash; Optional. Encoding of
+  `data` string; ignored if `data` is an [ArrayBuffer].
 - Resolves once the operation has been completed.
 
 ### completeHandlerIOS()
@@ -886,7 +926,7 @@ function pickFile(options?: PickFileOptionsT): Promise<string[]>;
 Prompts the user to select file(s) using a platform-provided file picker UI,
 which also allows to access files outside the app sandbox.
 
-**BEWARE:** On **windows** the options differ from the other platform since the 
+**BEWARE:** On **windows** the options differ from the other platform since the
 native file piper doesn't support `mimeTypes` but `fileExtensions` and different
 picker types like `singleFile`, `multipleFIle` and `folder`. For more information
 see [PickFileOptionsT].
@@ -923,9 +963,30 @@ crash the app.
 ### read()
 [read()]: #read
 ```ts
-function read(path: string, length = 0, position = 0, encodingOrOptions?: EncodingT | ReadFileOptionsT): Promise<string>;
+function read(
+  path: string,
+  length: number | undefined,
+  position: number | undefined,
+  encodingOrOptions: 'ArrayBuffer' | ReadFileOptionsT<'ArrayBuffer'>,
+): Promise<ArrayBuffer>;
+
+function read(
+  path: string,
+  length?: number | undefined,
+  position?: number | undefined,
+  encodingOrOptions?:
+    | Exclude<EncodingT, 'ArrayBuffer'>
+    | ReadFileOptionsT<Exclude<EncodingT, 'ArrayBuffer'>>,
+): Promise<string>;
+
+function read(
+  path: string,
+  length?: number,
+  position?: number,
+  encodingOrOptions?: EncodingT | ReadFileOptionsT,
+): Promise<ArrayBuffer | string>;
 ```
-**VERIFIED:** Android, iOS, macOS, Windows.
+**VERIFIED:** Android, iOS.
 
 Reads `length` bytes from the given `position` of a file.
 
@@ -949,7 +1010,8 @@ the given number of characters, if `utf8` is given.
 - `encodingOrOptions` &mdash; [EncodingT] | [ReadFileOptionsT] | **undefined**
   &mdash; Optional. The encoding to use, or additional read options (currently,
   the encoding is the only option anyway). Defaults `utf8`.
-- Resolves to **string** &mdash; the content read from file, transformed into
+- Resolves to [ArrayBuffer] or **string**, depending on the provided
+  `encodingOrOptions` value &mdash; the content read from file, transformed into
   the string according to the specified encoding.
 
 ### readdir()
@@ -1002,7 +1064,22 @@ the Android assets folder.
 ### readFile()
 [readFile()]: #readfile
 ```ts
-function readFile(path: string, encodingOrOptions?: EncodingT | ReadFileOptionsT): Promise<string>;
+function readFile(
+  path: string,
+  encodingOrOptions: 'ArrayBuffer' | ReadFileOptionsT<'ArrayBuffer'>,
+): Promise<ArrayBuffer>;
+
+function readFile(
+  path: string,
+  encodingOrOptions?:
+    | Exclude<EncodingT, 'ArrayBuffer'>
+    | ReadFileOptionsT<Exclude<EncodingT, 'ArrayBuffer'>>,
+): Promise<string>;
+
+function readFile(
+  path: string,
+  encodingOrOptions?: EncodingT | ReadFileOptionsT,
+): Promise<ArrayBuffer | string>;
 ```
 **VERIFIED:** Android, iOS, macOS, Windows.
 
@@ -1022,13 +1099,27 @@ of 1-to-4 bytes of the source file).
 - `path` &mdash; **string** &mdash; File path.
 - `encoding` &mdash; [EncodingT] | [ReadFileOptionsT] &mdash; Optional.
   File encoding, or extra options.
-- Resolves to **string** &mdash; the content read from the file, and transformed
-  according to the given encoding.
+- Resolves to [ArrayBuffer] or **string**, depending on the `encoding` value
+  &mdash; the content read from the file, and transformed according to
+  the given encoding.
 
 ### readFileAssets()
 [readFileAssets()]: #readfileassets
 ```ts
-function readFileAssets(path: string, encoding?: EncodingT | ReadFileOptionsT): Promise<string>;
+function readFileAssets(
+  path: string,
+  encodingOrOptions: EncodingOptions<'ArrayBuffer'>,
+): Promise<ArrayBuffer>;
+
+function readFileAssets(
+  path: string,
+  encodingOrOptions?: EncodingOptions<Exclude<EncodingT, 'ArrayBuffer'>>,
+): Promise<string>;
+
+function readFileAssets(
+  path: string,
+  encodingOrOptions?: EncodingOptions,
+): Promise<ArrayBuffer | string>;
 ```
 **VERIFIED:** Android. **NOT SUPPORTED:** iOS, macOS, Windows.
 
@@ -1040,12 +1131,26 @@ and return its contents. `encoding` can be one of `utf8` (default), `ascii`,
 - `encoding` &mdash; [EncodingT] | [ReadFileOptionsT] | **undefined** &mdash;
   Optional. Encoding, or extra options object, which currently only supports
   specifying the encoding.
-- Resolves to **string** &mdash; the asset content.
+- Resolves to [ArrayBuffer] or **string**, depending on the provided
+  `encodingOrOptions` value &mdash; the asset content.
 
 ### readFileRes
 [readFileRes()]: #readfileres
 ```ts
-function readFileRes(filename: string, encoding?: EncodingT): Promise<string>;
+function readFileRes(
+  filename: string,
+  encodingOrOptions: EncodingOptions<'ArrayBuffer'>,
+): Promise<ArrayBuffer>;
+
+function readFileRes(
+  filename: string,
+  encodingOrOptions?: EncodingOptions<Exclude<EncodingT, 'ArrayBuffer'>>,
+): Promise<string>;
+
+function readFileRes(
+  filename: string,
+  encodingOrOptions?: EncodingOptions,
+): Promise<ArrayBuffer | string>;
 ```
 **VERIFIED:** Android. **NOT SUPPORTED:** iOS, macOS, Windows.
 
@@ -1060,7 +1165,8 @@ I've overlooked something.
 
 - `filename` &mdash; **string** &mdash; Resouce file name.
 - `encoding` &mdash; [EncodingT] &mdash; Optional Encdoing.
-- Resolves to **string** &mdash; the resource content.
+- Resolves to [ArrayBuffer] or **string**, depending on the provided
+  `encodingOrOptions` value &mdash; the resource content.
 
 ### resumeDownload()
 [resumeDownload()]: #resumedownload
@@ -1189,23 +1295,33 @@ in this library fork.
 ### write()
 [write()]: #write
 ```ts
-function write(filepath: string, contents: string, position?: number, encoding?: EncodingT): Promise<void>;
+export function write(
+  filepath: string,
+  data: ArrayBuffer | string,
+  position: number = -1,
+  encodingOrOptions?: EncodingOptions,
+): Promise<void> {
 ```
-**VERIFIED:** Android, iOS, macOS, Windows 
+**VERIFIED:** Android, iOS.
 
 Writes content to a file at the given random access position.
 
 - `filepath` &mdash; **string** &mdash; File path.
-- `contents` &mdash; **string** &mdash; Content to write.
-- `position` &mdash; **number** | **undefined** &mdash; Write position.
+- `data` &mdash; [ArrayBuffer] | **string** &mdash; Data to write.
+- `position` &mdash; **number** | **undefined** &mdash; Optional. Write position.
   If `undefined` or `-1` the contents is appended to the end of the file.
-- `encoding` &mdash; [EncodingT] &mdash; Write encoding.
+- `encoding` &mdash; [EncodingT] &mdash; Optional. Encoding of `data` string;
+  ignored if `data` is an [ArrayBuffer].
 - Resolves once the operation has been completed.
 
 ### writeFile()
 [writeFile()]: #writefile
-```ts
-function writeFile(path: string, content: string, encodingOrOptions?: EncodingT | WriteFileOptionsT): Promise<void>
+```tsx
+export function writeFile(
+  path: string,
+  data: ArrayBuffer | string,
+  encodingOrOptions?: EncodingT | WriteFileOptionsT,
+): Promise<void> {
 ```
 **VERIFIED:** Android, iOS, macOS, Windows.
 
@@ -1222,9 +1338,10 @@ into the corresponding UTF8 code (_i.e._ each source character will be
 turned into a group of 1-to-4 bytes in the written file).
 
 - `path` &mdash; **string** &mdash; File path.
-- `content` &mdash; **string** &mdash; Data to write into the file.
-- `encodingOrOptions` &mdash; [EncodingT] | [WriteFileOptionsT] &mdash; Data
-  encoding, or extra options.
+- `data` &mdash; [ArrayBuffer] | **string** &mdash; Data to write into the file.
+- `encodingOrOptions` &mdash; [EncodingT] | [WriteFileOptionsT] &mdash; Encoding
+  of `data` string, or extra options. The encoding is ignored if `data` is
+  an [ArrayBuffer].
 - Resolves once completed.
 
 ## Types
@@ -1313,7 +1430,7 @@ The type of options argument of [downloadFile()].
   argument of [DownloadProgressCallbackResultT] type.
 
 - `resumable` &mdash; **() => void** &mdash; Optional. iOS-only. If provided,
-  it is invoked when the download has stopped and and can be resumed using [resumeDownload()]. 
+  it is invoked when the download has stopped and and can be resumed using [resumeDownload()].
 
 - `connectionTimeout` &mdash; **number** &mdash; Optional. Only supported on
   Android yet.
@@ -1347,6 +1464,8 @@ type DownloadResultT = {
   jobId: number;
   statusCode: number;
   bytesWritten: number;
+  headers: StringMapT; // iOS and Android only
+  body?: string; // iOS and Android only
 };
 ```
 Return type of [downloadFile()].
@@ -1355,11 +1474,22 @@ Return type of [downloadFile()].
 - `statusCode` &mdash; **number** &mdash; The HTTP status code.
 - `bytesWritten` &mdash; **number** &mdash; The number of bytes written to
   the file.
+- `headers` &mdash; [StringMapT] &mdash; The HTTP response headers from
+  the server.
+- `body` &mdash; **string** &mdash; The HTTP response body only for not in the range 200-299 status codes
+
+### EncodingOptions
+[EncodingOptions]: #encodingoptions
+```tsx
+type EncodingOptions<T extends EncodingT = EncodingT> =
+  T | { encoding?: T };
+```
+[EncodingT] value provided directly, or as a field of an option object.
 
 ### EncodingT
 [EncodingT]: #encodingt
 ```ts
-type EncodingT = 'ascii' | 'base64' | `utf8`;
+type EncodingT = 'ArrayBuffer' | 'ascii' | 'base64' | `utf8`;
 ```
 Union of valid file encoding values.
 
@@ -1375,6 +1505,23 @@ The type of additional options for [copyFile()].
 
 - `NSFileProtectionKey` &mdash; **string** | **undefined** &mdash; Optional.
   iOS-only. See https://developer.apple.com/documentation/foundation/nsfileprotectionkey
+
+### FileProtectionKeysT
+[FileProtectionKeysT]: #fileprotectionkeyst
+```ts
+type FileProtectionKeysT = {
+  FileProtectionComplete: string;
+  FileProtectionCompleteUnlessOpen: string;
+  FileProtectionCompleteUntilFirstUserAuthentication: string;
+  FileProtectionNone: string;
+};
+```
+The type of [FileProtectionKeys] object. It holds the values of iOS file
+protection level constants:
+- [FileProtectionComplete](https://developer.apple.com/documentation/foundation/fileprotectiontype/complete)
+- [FileProtectionCompleteUnlessOpen](https://developer.apple.com/documentation/foundation/fileprotectiontype/completeunlessopen)
+- [FileProtectionCompleteUntilFirstUserAuthentication](https://developer.apple.com/documentation/foundation/fileprotectiontype/completeuntilfirstuserauthentication)
+- [FileProtectionNone](https://developer.apple.com/documentation/foundation/fileprotectiontype/none)
 
 ### FSInfoResultT
 [FSInfoResultT]: #fsinforesultt
@@ -1431,10 +1578,10 @@ Optional parameters for [pickFile()] function.
   of files user is allowed to select. Defaults to `['*/*']` allowing to select
   any file.
 - `pickerType` &mdash; **'singleFile' | 'multipleFiles' | 'folder'** &mdash;  *[Windows]* Optional.
-   The type of objects to pick can be either a single file, multiple files or one folder. 
+   The type of objects to pick can be either a single file, multiple files or one folder.
    - Multiple folders are not supported by windows.
    - Defaults to `'singleFile'` */
-- `fileExtensions` &mdash; **FileExtension[]** &mdash; *[Windows]* Optional, The file extensions to pick from. 
+- `fileExtensions` &mdash; **FileExtension[]** &mdash; *[Windows]* Optional, The file extensions to pick from.
    - Only applies to `pickerType !== 'folder'`
    - Defaults to `[]` (all file extensions) */
    - `FileExtension = ´.${string}´` - e.g `'.bmp'`, `'.mp3'`
@@ -1670,3 +1817,5 @@ The type of extra options argument of the [writeFile()] function.
   to use. Defaults `utf8`.
 - `NSFileProtectionKey` &mdash; **string** | **undefined** &mdash; Optional.
   iOS-only. See: https://developer.apple.com/documentation/foundation/nsfileprotectionkey
+
+[ArrayBuffer]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer

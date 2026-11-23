@@ -21,7 +21,11 @@
 #import "RNFSBackgroundDownloads.h"
 #import "RNFSException.h"
 
-@implementation ReactNativeFs
+@implementation ReactNativeFs {
+  int lastDataKey;
+  NSMutableDictionary<NSNumber*,NSMutableData*> *data;
+  NSMutableDictionary<NSValue*,NSArray*> *pendingPickFilePromises;
+}
 
 // The prefix of "Bookmark URLs".
 // See https://developer.apple.com/documentation/foundation/nsurl#1663783
@@ -31,19 +35,19 @@
 // and pass the resulting "Bookmark URLs" string around.
 static NSString *BOOKMARK = @"bookmark://";
 
-NSMutableDictionary<NSValue*,NSArray*> *pendingPickFilePromises;
-
-RCT_EXPORT_MODULE()
-
-- (instancetype) init
+- (id) init
 {
-  pendingPickFilePromises = [NSMutableDictionary dictionaryWithCapacity:1];
-  return [super init];
+  if (self = [super init]) {
+    lastDataKey = 0;
+    data = [NSMutableDictionary dictionaryWithCapacity:1];
+    pendingPickFilePromises = [NSMutableDictionary dictionaryWithCapacity:1];
+  }
+  return self;
 }
 
-RCT_EXPORT_METHOD(readDir:(NSString *)dirPath
-                  resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+- (void) readDir:(NSString *)dirPath
+         resolve:(RCTPromiseResolveBlock)resolve
+          reject:(RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *dirUrl = [ReactNativeFs pathToUrl:dirPath error:&error];
@@ -102,9 +106,9 @@ RCT_EXPORT_METHOD(readDir:(NSString *)dirPath
   }
 }
 
-RCT_EXPORT_METHOD(exists:(NSString *)filepath
-                  resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(__unused RCTPromiseRejectBlock)reject)
+- (void) exists:(NSString *)filepath
+        resolve:(RCTPromiseResolveBlock)resolve
+         reject:(__unused RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:filepath error:&error];
@@ -121,9 +125,9 @@ RCT_EXPORT_METHOD(exists:(NSString *)filepath
   }
 }
 
-RCT_EXPORT_METHOD(stat:(NSString *)filepath
-                  resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+- (void) stat:(NSString *)filepath
+      resolve:(RCTPromiseResolveBlock)resolve
+       reject:(RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:filepath error:&error];
@@ -146,16 +150,16 @@ RCT_EXPORT_METHOD(stat:(NSString *)filepath
     if (size == nil) size = @64;
 
     attributes = @{
-                   @"ctime": [self dateToTimeIntervalNumber:(NSDate *)[attributes objectForKey:NSURLCreationDateKey]],
-                   @"mtime": [self dateToTimeIntervalNumber:(NSDate *)[attributes objectForKey:NSURLContentModificationDateKey]],
-                   @"size": size,
-                   @"type": [attributes objectForKey:NSURLFileResourceTypeKey],
+      @"ctime": [self dateToTimeIntervalNumber:(NSDate *)[attributes objectForKey:NSURLCreationDateKey]],
+      @"mtime": [self dateToTimeIntervalNumber:(NSDate *)[attributes objectForKey:NSURLContentModificationDateKey]],
+      @"size": size,
+      @"type": [attributes objectForKey:NSURLFileResourceTypeKey],
 
-                   // TODO: So far I haven't found how to get POSIX permissions of a resource from NSURL object.
-                   // @"mode": @([[NSString stringWithFormat:@"%ld", (long)[(NSNumber *)[attributes objectForKey:NSFilePosixPermissions] integerValue]] integerValue]),
+      // TODO: So far I haven't found how to get POSIX permissions of a resource from NSURL object.
+      // @"mode": @([[NSString stringWithFormat:@"%ld", (long)[(NSNumber *)[attributes objectForKey:NSFilePosixPermissions] integerValue]] integerValue]),
 
-                   @"originalFilepath": @"NOT_SUPPORTED_ON_IOS"
-                   };
+      @"originalFilepath": @"NOT_SUPPORTED_ON_IOS"
+    };
 
     resolve(attributes);
   }
@@ -164,14 +168,12 @@ RCT_EXPORT_METHOD(stat:(NSString *)filepath
   }
 }
 
-RCT_EXPORT_METHOD(writeFile:(NSString *)filepath
-                  b64:(NSString *)base64Content
-                  options:(JS::NativeReactNativeFs::FileOptionsT &)options
-                  resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+- (void)writeFile:(nonnull NSString *)filepath
+             data:(nonnull NSMutableData *)data
+          options:(JS::NativeReactNativeFs::FileOptionsT &)options
+          resolve:(nonnull RCTPromiseResolveBlock)resolve
+           reject:(nonnull RCTPromiseRejectBlock)reject
 {
-  NSData *data = [[NSData alloc] initWithBase64EncodedString:base64Content options:NSDataBase64DecodingIgnoreUnknownCharacters];
-
   NSMutableDictionary *attributes = [[NSMutableDictionary alloc] init];
 
   if (options.NSFileProtectionKey() != nil) {
@@ -187,10 +189,10 @@ RCT_EXPORT_METHOD(writeFile:(NSString *)filepath
   return resolve(nil);
 }
 
-RCT_EXPORT_METHOD(appendFile:(NSString *)filepath
-                  b64:(NSString *)b64
-                  resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+- (void)appendFile:(nonnull NSString *)filepath
+              data:(nonnull NSMutableData *)data
+           resolve:(nonnull RCTPromiseResolveBlock)resolve
+            reject:(nonnull RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:filepath error:&error];
@@ -199,8 +201,6 @@ RCT_EXPORT_METHOD(appendFile:(NSString *)filepath
   BOOL allowed = [url startAccessingSecurityScopedResource];
 
   @try {
-    NSData *data = [[NSData alloc] initWithBase64EncodedString:b64 options:NSDataBase64DecodingIgnoreUnknownCharacters];
-
     NSFileManager *fM = [NSFileManager defaultManager];
 
     if (![fM fileExistsAtPath:filepath])
@@ -238,14 +238,12 @@ RCT_EXPORT_METHOD(appendFile:(NSString *)filepath
   }
 }
 
-RCT_EXPORT_METHOD(write:(NSString *)filepath
-                  b64:(NSString *)b64
-                  position:(double)position
-                  resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+- (void)write:(nonnull NSString *)filepath
+         data:(nonnull NSMutableData *)data
+     position:(double)position
+      resolve:(nonnull RCTPromiseResolveBlock)resolve
+       reject:(nonnull RCTPromiseRejectBlock)reject
 {
-  NSData *data = [[NSData alloc] initWithBase64EncodedString:b64 options:NSDataBase64DecodingIgnoreUnknownCharacters];
-
   NSFileManager *fM = [NSFileManager defaultManager];
 
   if (![fM fileExistsAtPath:filepath])
@@ -275,9 +273,9 @@ RCT_EXPORT_METHOD(write:(NSString *)filepath
   }
 }
 
-RCT_EXPORT_METHOD(unlink:(NSString*)filepath
+- (void) unlink:(NSString*)filepath
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:filepath error:&error];
@@ -305,10 +303,10 @@ RCT_EXPORT_METHOD(unlink:(NSString*)filepath
   }
 }
 
-RCT_EXPORT_METHOD(mkdir:(NSString *)filepath
+- (void) mkdir:(NSString *)filepath
                   options:(JS::NativeReactNativeFs::MkdirOptionsT &)options
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSFileManager *manager = [NSFileManager defaultManager];
 
@@ -335,9 +333,9 @@ RCT_EXPORT_METHOD(mkdir:(NSString *)filepath
   resolve(nil);
 }
 
-RCT_EXPORT_METHOD(readFile:(NSString *)filepath
+- (void) readFile:(NSString *)filepath
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:filepath error:&error];
@@ -363,20 +361,18 @@ RCT_EXPORT_METHOD(readFile:(NSString *)filepath
     }
 
     NSData *content = [[NSFileManager defaultManager] contentsAtPath:filepath];
-    NSString *base64Content = [content base64EncodedStringWithOptions:NSDataBase64EncodingEndLineWithLineFeed];
-
-    resolve(base64Content);
+    resolve([self stashData:content]);
   }
   @finally {
     if (allowed) [url stopAccessingSecurityScopedResource];
   }
 }
 
-RCT_EXPORT_METHOD(read:(NSString *)path
+- (void) read:(NSString *)path
                   length: (double)length
                   position: (double)position
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:path error:&error];
@@ -417,19 +413,17 @@ RCT_EXPORT_METHOD(read:(NSString *)path
         content = [file readDataToEndOfFile];
     }
 
-    NSString *base64Content = [content base64EncodedStringWithOptions:NSDataBase64EncodingEndLineWithLineFeed];
-
-    resolve(base64Content);
+    resolve([self stashData:content]);
   }
   @finally {
     if (allowed) [url stopAccessingSecurityScopedResource];
   }
 }
 
-RCT_EXPORT_METHOD(hash:(NSString *)filepath
+- (void) hash:(NSString *)filepath
                   algorithm:(NSString *)algorithm
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:filepath error:&error];
@@ -454,8 +448,6 @@ RCT_EXPORT_METHOD(hash:(NSString *)filepath
       return reject(@"EISDIR", @"EISDIR: illegal operation on a directory, read", nil);
     }
 
-    NSData *content = [NSData dataWithContentsOfURL:url];
-
     NSArray *keys = [NSArray arrayWithObjects:@"md5", @"sha1", @"sha224", @"sha256", @"sha384", @"sha512", nil];
 
     NSArray *digestLengths = [NSArray arrayWithObjects:
@@ -477,20 +469,87 @@ RCT_EXPORT_METHOD(hash:(NSString *)filepath
 
     unsigned char buffer[digestLength];
 
+    // Hash the file in fixed-size chunks instead of loading it fully into
+    // memory: a single NSData allocation of a multi-GB file gets the app
+    // killed by iOS (jetsam OOM), and the one-shot CC_* functions truncate
+    // lengths >= 4GB through their 32-bit CC_LONG length parameter.
+    CC_MD5_CTX md5Ctx;
+    CC_SHA1_CTX sha1Ctx;
+    CC_SHA256_CTX sha224Ctx; // SHA-224 uses the SHA-256 context type
+    CC_SHA256_CTX sha256Ctx;
+    CC_SHA512_CTX sha384Ctx; // SHA-384 uses the SHA-512 context type
+    CC_SHA512_CTX sha512Ctx;
+
     if ([algorithm isEqualToString:@"md5"]) {
-      CC_MD5(content.bytes, (CC_LONG)content.length, buffer);
+      CC_MD5_Init(&md5Ctx);
     } else if ([algorithm isEqualToString:@"sha1"]) {
-      CC_SHA1(content.bytes, (CC_LONG)content.length, buffer);
+      CC_SHA1_Init(&sha1Ctx);
     } else if ([algorithm isEqualToString:@"sha224"]) {
-      CC_SHA224(content.bytes, (CC_LONG)content.length, buffer);
+      CC_SHA224_Init(&sha224Ctx);
     } else if ([algorithm isEqualToString:@"sha256"]) {
-      CC_SHA256(content.bytes, (CC_LONG)content.length, buffer);
+      CC_SHA256_Init(&sha256Ctx);
     } else if ([algorithm isEqualToString:@"sha384"]) {
-      CC_SHA384(content.bytes, (CC_LONG)content.length, buffer);
+      CC_SHA384_Init(&sha384Ctx);
     } else if ([algorithm isEqualToString:@"sha512"]) {
-      CC_SHA512(content.bytes, (CC_LONG)content.length, buffer);
+      CC_SHA512_Init(&sha512Ctx);
     } else {
       return reject(@"Error", [NSString stringWithFormat:@"Invalid hash algorithm '%@'", algorithm], nil);
+    }
+
+    NSInputStream *inputStream = [NSInputStream inputStreamWithURL:url];
+    if (inputStream == nil) {
+      return reject(@"EUNSPECIFIED", [NSString stringWithFormat:@"Failed to open '%@' for reading", url.absoluteURL], nil);
+    }
+
+    static const NSUInteger chunkSize = 1024 * 1024;
+    NSMutableData *chunk = [NSMutableData dataWithLength:chunkSize];
+    NSInteger bytesRead = 0;
+
+    [inputStream open];
+    @try {
+      if (inputStream.streamError) {
+        return [[RNFSException fromError:inputStream.streamError] reject:reject];
+      }
+
+      while ((bytesRead = [inputStream read:(uint8_t *)chunk.mutableBytes maxLength:chunkSize]) > 0) {
+        if ([algorithm isEqualToString:@"md5"]) {
+          CC_MD5_Update(&md5Ctx, chunk.bytes, (CC_LONG)bytesRead);
+        } else if ([algorithm isEqualToString:@"sha1"]) {
+          CC_SHA1_Update(&sha1Ctx, chunk.bytes, (CC_LONG)bytesRead);
+        } else if ([algorithm isEqualToString:@"sha224"]) {
+          CC_SHA224_Update(&sha224Ctx, chunk.bytes, (CC_LONG)bytesRead);
+        } else if ([algorithm isEqualToString:@"sha256"]) {
+          CC_SHA256_Update(&sha256Ctx, chunk.bytes, (CC_LONG)bytesRead);
+        } else if ([algorithm isEqualToString:@"sha384"]) {
+          CC_SHA384_Update(&sha384Ctx, chunk.bytes, (CC_LONG)bytesRead);
+        } else if ([algorithm isEqualToString:@"sha512"]) {
+          CC_SHA512_Update(&sha512Ctx, chunk.bytes, (CC_LONG)bytesRead);
+        }
+      }
+
+      if (bytesRead < 0) {
+        if (inputStream.streamError) {
+          return [[RNFSException fromError:inputStream.streamError] reject:reject];
+        }
+        return reject(@"EUNSPECIFIED", [NSString stringWithFormat:@"Failed to read '%@'", url.absoluteURL], nil);
+      }
+    }
+    @finally {
+      [inputStream close];
+    }
+
+    if ([algorithm isEqualToString:@"md5"]) {
+      CC_MD5_Final(buffer, &md5Ctx);
+    } else if ([algorithm isEqualToString:@"sha1"]) {
+      CC_SHA1_Final(buffer, &sha1Ctx);
+    } else if ([algorithm isEqualToString:@"sha224"]) {
+      CC_SHA224_Final(buffer, &sha224Ctx);
+    } else if ([algorithm isEqualToString:@"sha256"]) {
+      CC_SHA256_Final(buffer, &sha256Ctx);
+    } else if ([algorithm isEqualToString:@"sha384"]) {
+      CC_SHA384_Final(buffer, &sha384Ctx);
+    } else if ([algorithm isEqualToString:@"sha512"]) {
+      CC_SHA512_Final(buffer, &sha512Ctx);
     }
 
     NSMutableString *output = [NSMutableString stringWithCapacity:digestLength * 2];
@@ -504,11 +563,11 @@ RCT_EXPORT_METHOD(hash:(NSString *)filepath
   }
 }
 
-RCT_EXPORT_METHOD(moveFile:(NSString *)from
+- (void) moveFile:(NSString *)from
                   into:(NSString *)into
                   options:(JS::NativeReactNativeFs::FileOptionsT &)options
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:from error:&error];
@@ -540,11 +599,11 @@ RCT_EXPORT_METHOD(moveFile:(NSString *)from
 }
 
 
-RCT_EXPORT_METHOD(copyFile:(NSString *)from
+- (void) copyFile:(NSString *)from
                   into:(NSString *)into
                   options:(JS::NativeReactNativeFs::FileOptionsT & )options
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSError *error = nil;
   NSURL *url = [ReactNativeFs pathToUrl:from error:&error];
@@ -575,14 +634,9 @@ RCT_EXPORT_METHOD(copyFile:(NSString *)from
   }
 }
 
-- (NSArray<NSString *> *)supportedEvents
-{
-    return @[@"UploadBegin",@"UploadProgress",@"DownloadBegin",@"DownloadProgress",@"DownloadResumable"];
-}
-
-RCT_EXPORT_METHOD(downloadFile:(JS::NativeReactNativeFs::NativeDownloadFileOptionsT &)options
+- (void) downloadFile:(JS::NativeReactNativeFs::NativeDownloadFileOptionsT &)options
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   RNFSDownloadParams* params = [RNFSDownloadParams alloc];
 
@@ -608,7 +662,7 @@ RCT_EXPORT_METHOD(downloadFile:(JS::NativeReactNativeFs::NativeDownloadFileOptio
 
   __block BOOL callbackFired = NO;
 
-  params.completeCallback = ^(NSNumber* statusCode, NSNumber* bytesWritten) {
+  params.completeCallback = ^(NSNumber* statusCode, NSNumber* bytesWritten, NSDictionary* headers, NSString* body) {
     if (callbackFired) {
       return;
     }
@@ -620,6 +674,12 @@ RCT_EXPORT_METHOD(downloadFile:(JS::NativeReactNativeFs::NativeDownloadFileOptio
     }
     if (bytesWritten) {
       [result setObject:bytesWritten forKey: @"bytesWritten"];
+    }
+    if (headers) {
+      [result setObject:headers forKey: @"headers"];
+    }
+    if (body) {
+      [result setObject:body forKey: @"body"];
     }
     return resolve(result);
   };
@@ -634,8 +694,7 @@ RCT_EXPORT_METHOD(downloadFile:(JS::NativeReactNativeFs::NativeDownloadFileOptio
 
   if (hasBeginCallback) {
     params.beginCallback = ^(NSNumber* statusCode, NSNumber* contentLength, NSDictionary* headers) {
-        if (self.bridge != nil)
-            [self sendEventWithName:@"DownloadBegin" body:@{@"jobId": jobId,
+            [self emitOnDownloadBegin:@{@"jobId": jobId,
                                                                                             @"statusCode": statusCode,
                                                                                             @"contentLength": contentLength,
                                                                                             @"headers": headers ?: [NSNull null]}];
@@ -644,9 +703,7 @@ RCT_EXPORT_METHOD(downloadFile:(JS::NativeReactNativeFs::NativeDownloadFileOptio
 
   if (hasProgressCallback) {
     params.progressCallback = ^(NSNumber* contentLength, NSNumber* bytesWritten) {
-        if (self.bridge != nil)
-          [self sendEventWithName:@"DownloadProgress"
-                                                  body:@{@"jobId": jobId,
+          [self emitOnDownloadProgress:@{@"jobId": jobId,
                                                           @"contentLength": contentLength,
                                                           @"bytesWritten": bytesWritten}];
     };
@@ -654,8 +711,7 @@ RCT_EXPORT_METHOD(downloadFile:(JS::NativeReactNativeFs::NativeDownloadFileOptio
 
   if (hasResumableCallback) {
     params.resumableCallback = ^() {
-        if (self.bridge != nil)
-            [self sendEventWithName:@"DownloadResumable" body:@{@"jobId": jobId}];
+            [self emitOnDownloadResumable:@{@"jobId": jobId}];
     };
   }
 
@@ -672,7 +728,7 @@ RCT_EXPORT_METHOD(downloadFile:(JS::NativeReactNativeFs::NativeDownloadFileOptio
     }
 }
 
-RCT_EXPORT_METHOD(stopDownload:(double)jobId)
+- (void) stopDownload:(double)jobId
 {
   RNFSDownloader* downloader = [self.downloaders objectForKey:[[NSNumber numberWithDouble:jobId] stringValue]];
 
@@ -681,7 +737,7 @@ RCT_EXPORT_METHOD(stopDownload:(double)jobId)
   }
 }
 
-RCT_EXPORT_METHOD(resumeDownload:(double)jobId)
+- (void) resumeDownload:(double)jobId
 {
     RNFSDownloader* downloader = [self.downloaders objectForKey:[[NSNumber numberWithDouble:jobId] stringValue]];
 
@@ -690,10 +746,9 @@ RCT_EXPORT_METHOD(resumeDownload:(double)jobId)
     }
 }
 
-RCT_EXPORT_METHOD(isResumable:(double)jobId
+- (void) isResumable:(double)jobId
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject
-)
 {
     RNFSDownloader* downloader = [self.downloaders objectForKey:[[NSNumber numberWithDouble:jobId] stringValue]];
 
@@ -704,7 +759,7 @@ RCT_EXPORT_METHOD(isResumable:(double)jobId
     }
 }
 
-RCT_EXPORT_METHOD(completeHandlerIOS:(double)jobId)
+- (void) completeHandlerIOS:(double)jobId
 {
     if (self.uuids) {
         NSNumber *jid = [NSNumber numberWithDouble:jobId];
@@ -713,9 +768,9 @@ RCT_EXPORT_METHOD(completeHandlerIOS:(double)jobId)
     }
 }
 
-RCT_EXPORT_METHOD(uploadFiles:(JS::NativeReactNativeFs::NativeUploadFileOptionsT &)options
+- (void) uploadFiles:(JS::NativeReactNativeFs::NativeUploadFileOptionsT &)options
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   RNFSUploadParams* params = [RNFSUploadParams alloc];
 
@@ -755,17 +810,13 @@ RCT_EXPORT_METHOD(uploadFiles:(JS::NativeReactNativeFs::NativeUploadFileOptionsT
 
   if (hasBeginCallback) {
     params.beginCallback = ^() {
-        if (self.bridge != nil)
-          [self sendEventWithName:@"UploadBegin"
-                                                  body:@{@"jobId": jobId}];
+          [self emitOnUploadBegin:@{@"jobId": jobId}];
     };
   }
 
   if (hasProgressCallback) {
     params.progressCallback = ^(NSNumber* totalBytesExpectedToSend, NSNumber* totalBytesSent) {
-        if (self.bridge != nil)
-            [self sendEventWithName:@"UploadProgress"
-                                                  body:@{@"jobId": jobId,
+            [self emitOnUploadProgress:@{@"jobId": jobId,
                                                           @"totalBytesExpectedToSend": totalBytesExpectedToSend,
                                                           @"totalBytesSent": totalBytesSent}];
     };
@@ -780,7 +831,7 @@ RCT_EXPORT_METHOD(uploadFiles:(JS::NativeReactNativeFs::NativeUploadFileOptionsT
   [self.uploaders setValue:uploader forKey:[jobId stringValue]];
 }
 
-RCT_EXPORT_METHOD(stopUpload:(double)jobId)
+- (void) stopUpload:(double)jobId
 {
   RNFSUploader* uploader = [self.uploaders objectForKey:[[NSNumber numberWithDouble:jobId] stringValue]];
 
@@ -789,9 +840,9 @@ RCT_EXPORT_METHOD(stopUpload:(double)jobId)
   }
 }
 
-RCT_EXPORT_METHOD(pathForBundle:(NSString *)bundleNamed
+- (void) pathForBundle:(NSString *)bundleNamed
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSString *path = [[NSBundle mainBundle].bundlePath stringByAppendingFormat:@"/%@.bundle", bundleNamed];
   NSBundle *bundle = [NSBundle bundleWithPath:path];
@@ -816,9 +867,9 @@ RCT_EXPORT_METHOD(pathForBundle:(NSString *)bundleNamed
   }
 }
 
-RCT_EXPORT_METHOD(pathForGroup:(nonnull NSString *)groupId
+- (void) pathForGroup:(nonnull NSString *)groupId
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
   NSURL *groupURL = [[NSFileManager defaultManager]containerURLForSecurityApplicationGroupIdentifier: groupId];
 
@@ -829,7 +880,7 @@ RCT_EXPORT_METHOD(pathForGroup:(nonnull NSString *)groupId
   }
 }
 
-RCT_EXPORT_METHOD(getFSInfo:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+- (void) getFSInfo:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
   unsigned long long totalSpace = 0;
   unsigned long long totalFreeSpace = 0;
@@ -868,7 +919,7 @@ RCT_EXPORT_METHOD(getFSInfo:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRe
  * It is also supported to scale the image via scale-factor (0.0-1.0) or with a specific
  * width and height. Also the resizeMode will be considered.
  */
-RCT_EXPORT_METHOD(copyAssetsFileIOS: (NSString *) imageUri
+- (void) copyAssetsFileIOS: (NSString *) imageUri
                   destPath: (NSString *) destination
                   width: (double) width
                   height: (double) height
@@ -876,7 +927,7 @@ RCT_EXPORT_METHOD(copyAssetsFileIOS: (NSString *) imageUri
                   compression: (double) compression
                   resizeMode: (NSString*) resizeMode
                   resolve: (RCTPromiseResolveBlock) resolve
-                  reject: (RCTPromiseRejectBlock) reject)
+                  reject: (RCTPromiseRejectBlock) reject
 
 {
 // [PHAsset fetchAssetsWithALAssetURLs] is deprecated and not supported in Mac Catalyst
@@ -955,10 +1006,10 @@ RCT_EXPORT_METHOD(copyAssetsFileIOS: (NSString *) imageUri
  *
  * To create a thumbnail from the video, refer to copyAssetsFileIOS
  */
-RCT_EXPORT_METHOD(copyAssetsVideoIOS: (NSString *) imageUri
+- (void) copyAssetsVideoIOS: (NSString *) imageUri
                   destPath: (NSString *) destination
                   resolve: (RCTPromiseResolveBlock) resolve
-                  reject: (RCTPromiseRejectBlock) reject)
+                  reject: (RCTPromiseRejectBlock) reject
 {
 // [PHAsset fetchAssetsWithALAssetURLs] is deprecated and not supported in Mac Catalyst
 # if !TARGET_OS_UIKITFORMAC && !TARGET_OS_OSX
@@ -990,7 +1041,7 @@ RCT_EXPORT_METHOD(copyAssetsVideoIOS: (NSString *) imageUri
       NSURL *url = [(AVURLAsset *)asset URL];
       NSLog(@"Final URL %@",url);
       BOOL writeResult = false;
-        
+
       if (@available(iOS 9.0, *)) {
           NSURL *destinationUrl = [NSURL fileURLWithPath:destination relativeToURL:nil];
           writeResult = [[NSFileManager defaultManager] copyItemAtURL:url toURL:destinationUrl error:&error];
@@ -998,7 +1049,7 @@ RCT_EXPORT_METHOD(copyAssetsVideoIOS: (NSString *) imageUri
           NSData *videoData = [NSData dataWithContentsOfURL:url];
           writeResult = [videoData writeToFile:destination options:NSDataWritingAtomic error:&error];
       }
-        
+
       if(writeResult) {
         NSLog(@"video success");
       }
@@ -1021,10 +1072,10 @@ RCT_EXPORT_METHOD(copyAssetsVideoIOS: (NSString *) imageUri
 # endif
 }
 
-RCT_EXPORT_METHOD(touch:(NSString*)filepath
+- (void) touch:(NSString*)filepath
                   options:(JS::NativeReactNativeFs::TouchOptions &) options
                   resolve:(RCTPromiseResolveBlock)resolve
-                  reject:(RCTPromiseRejectBlock)reject)
+                  reject:(RCTPromiseRejectBlock)reject
 {
     NSFileManager *manager = [NSFileManager defaultManager];
     BOOL exists = [manager fileExistsAtPath:filepath isDirectory:NULL];
@@ -1065,38 +1116,50 @@ RCT_EXPORT_METHOD(touch:(NSString*)filepath
   return [paths firstObject];
 }
 
-- (NSDictionary *)constantsToExport
+- (facebook::react::ModuleConstants<JS::NativeReactNativeFs::Constants>)constantsToExport
 {
-  return @{
-           @"MainBundlePath": [[NSBundle mainBundle] bundlePath],
-           @"CachesDirectoryPath": [self getPathForDirectory:NSCachesDirectory],
-           @"DocumentDirectoryPath": [self getPathForDirectory:NSDocumentDirectory],
-           @"ExternalDirectoryPath": [NSNull null],
-           @"ExternalStorageDirectoryPath": [NSNull null],
-           @"TemporaryDirectoryPath": NSTemporaryDirectory(),
-           @"LibraryDirectoryPath": [self getPathForDirectory:NSLibraryDirectory],
-           @"FileTypeRegular": NSURLFileResourceTypeRegular,
-           @"FileTypeDirectory": NSURLFileResourceTypeDirectory,
-           @"FileProtectionComplete": NSFileProtectionComplete,
-           @"FileProtectionCompleteUnlessOpen": NSFileProtectionCompleteUnlessOpen,
-           @"FileProtectionCompleteUntilFirstUserAuthentication": NSFileProtectionCompleteUntilFirstUserAuthentication,
-           @"FileProtectionNone": NSFileProtectionNone
-          };
+  return facebook::react::typedConstants<JS::NativeReactNativeFs::Constants>({
+    .CachesDirectoryPath = [self getPathForDirectory:NSCachesDirectory],
+    .DocumentDirectoryPath = [self getPathForDirectory:NSDocumentDirectory],
+    .DownloadDirectoryPath = @"",
+    .ExternalCachesDirectoryPath = @"",
+    .ExternalDirectoryPath = @"",
+    .ExternalStorageDirectoryPath = @"",
+    .MainBundlePath = [[NSBundle mainBundle] bundlePath],
+    .TemporaryDirectoryPath = NSTemporaryDirectory(),
+    .FileTypeRegular = NSURLFileResourceTypeRegular,
+    .FileTypeDirectory = NSURLFileResourceTypeDirectory,
+    .DocumentDirectory = 0,
+    .LibraryDirectoryPath = [self getPathForDirectory:NSLibraryDirectory],
+    .PicturesDirectoryPath = @"",
+    .RoamingDirectoryPath = @"",
+    .FileProtectionKeys = JS::NativeReactNativeFs::FileProtectionKeysT::Builder({
+      .FileProtectionComplete = NSFileProtectionComplete,
+      .FileProtectionCompleteUnlessOpen = NSFileProtectionCompleteUnlessOpen,
+      .FileProtectionCompleteUntilFirstUserAuthentication = NSFileProtectionCompleteUntilFirstUserAuthentication,
+      .FileProtectionNone = NSFileProtectionNone,
+    }),
+  });
 }
 
-- (NSDictionary *) getConstants {
-  return [self constantsToExport];
+- (facebook::react::ModuleConstants<JS::NativeReactNativeFs::Constants>)getConstants
+{
+  // NOTE: Although the explicit type cast below seems unnecessary,
+  // it has been reported that without it the library build fails for Expo,
+  // thus let's have it here for the foreseeable future;
+  // see: https://github.com/birdofpreyru/react-native-fs/issues/139
+  return (facebook::react::ModuleConstants<JS::NativeReactNativeFs::Constants>)[self constantsToExport];
 }
 
-- (void)copyFileAssets:(NSString *)from into:(NSString *)into resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject { 
+- (void)copyFileAssets:(NSString *)from into:(NSString *)into resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"copyFileAssets()"];
 }
 
-- (void)copyFileRes:(NSString *)from into:(NSString *)into resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject { 
+- (void)copyFileRes:(NSString *)from into:(NSString *)into resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"copyFileRes()"];
 }
 
-- (void)copyFolder:(NSString *)from into:(NSString *)into resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject { 
+- (void)copyFolder:(NSString *)from into:(NSString *)into resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"copyFolder()"];
 }
 
@@ -1104,23 +1167,23 @@ RCT_EXPORT_METHOD(touch:(NSString*)filepath
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"existsAssets()"];
 }
 
-- (void)existsRes:(NSString *)path resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject { 
+- (void)existsRes:(NSString *)path resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"existsRes()"];
 }
 
-- (void)getAllExternalFilesDirs:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject { 
+- (void)getAllExternalFilesDirs:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"getAllExternalFilesDirs()"];
 }
 
-- (void)readFileAssets:(NSString *)path resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject { 
+- (void)readFileAssets:(NSString *)path resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"readFileAssets()"];
 }
 
-- (void)readFileRes:(NSString *)path resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject { 
+- (void)readFileRes:(NSString *)path resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"readFileRes()"];
 }
 
-- (void)scanFile:(NSString *)path resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject { 
+- (void)scanFile:(NSString *)path resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [[RNFSException NOT_IMPLEMENTED] reject:reject details:@"scanFile()"];
 }
 
@@ -1189,11 +1252,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls
 }
 #endif
 
-RCT_EXPORT_METHOD(
-                  pickFile:(JS::NativeReactNativeFs::PickFileOptionsT &)options
+- (void) pickFile:(JS::NativeReactNativeFs::PickFileOptionsT &)options
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject
-) {
+{
 # if TARGET_OS_IOS
   // NOTE: We must copy options into a local variable, so that (especially with
   // the new, bridgeless architecture) it is correctly detained by the async
@@ -1253,6 +1315,22 @@ RCT_EXPORT_METHOD(
 # endif
 }
 
+- (nonnull NSMutableData *)getArrayBuffer:(double)id
+{
+  NSNumber *key = @(id);
+  NSMutableData *res = data[key];
+  [data removeObjectForKey:key];
+  return res;
+}
+
+- (NSNumber*) stashData:(nonnull NSData*)data
+{
+  if (++lastDataKey == INT_MAX) lastDataKey = 0;
+  NSNumber *key = @(lastDataKey);
+  self->data[key] = [NSMutableData dataWithData:data];
+  return key;
+}
+
 /**
  * Given a path string converts it into NSURL object.
  */
@@ -1300,6 +1378,11 @@ RCT_EXPORT_METHOD(
     (const facebook::react::ObjCTurboModule::InitParams &)params
 {
     return std::make_shared<facebook::react::NativeReactNativeFsSpecJSI>(params);
+}
+
++ (NSString *)moduleName
+{
+  return @"ReactNativeFs";
 }
 
 @end

@@ -1,4 +1,8 @@
-import { type TurboModule, TurboModuleRegistry } from 'react-native';
+import {
+  type CodegenTypes,
+  type TurboModule,
+  TurboModuleRegistry,
+} from 'react-native';
 
 // Note: It would be better to have all these type definitions in a dedicated
 // module, however as of its current version RN's Codegen does not seem to handle
@@ -17,6 +21,10 @@ export type DownloadProgressCallbackResultT = {
   jobId: number; // The download job ID, required if one wishes to cancel the download. See `stopDownload`.
   contentLength: number; // The total size in bytes of the download resource
   bytesWritten: number; // The number of bytes written to the file so far
+};
+
+export type DownloadResumableCallbackResultT = {
+  jobId: number;
 };
 
 /**
@@ -76,18 +84,15 @@ export type DownloadFileOptionsT = {
 
   begin?: (res: DownloadBeginCallbackResultT) => void;
   progress?: (res: DownloadProgressCallbackResultT) => void;
-
-  // TODO: Yeah, original typing did not have "res" argument at all,
-  // but the code using this type actually passes an argument to
-  // resumable. Should be double-checked, if we have this argument,
-  // or drop it.
-  resumable?: (res: unknown) => void; // only supported on iOS yet
+  resumable?: (res: DownloadResumableCallbackResultT) => void; // only supported on iOS yet
 };
 
 export type DownloadResultT = {
   jobId: number; // The download job ID, required if one wishes to cancel the download. See `stopDownload`.
   statusCode: number; // The HTTP status code
   bytesWritten: number; // The number of bytes written to the file
+  headers?: StringMapT; // The HTTP response headers from the server
+  body?: string; // The HTTP response body
 };
 
 export type FileOptionsT = {
@@ -221,11 +226,20 @@ export type UploadFileOptionsT = {
   method?: string; // Default is 'POST', supports 'POST' and 'PUT'
 
   // TODO: Remove these future versions.
-  beginCallback?: (res: UploadBeginCallbackArgT) => void; // deprecated
-  progressCallback?: (res: UploadProgressCallbackArgT) => void; // deprecated
+  /** @deprecated */
+  beginCallback?: (res: UploadBeginCallbackArgT) => void;
+  /** @deprecated */
+  progressCallback?: (res: UploadProgressCallbackArgT) => void;
 
   begin?: (res: UploadBeginCallbackArgT) => void;
   progress?: (res: UploadProgressCallbackArgT) => void;
+};
+
+export type FileProtectionKeysT = {
+  FileProtectionComplete: string;
+  FileProtectionCompleteUnlessOpen: string;
+  FileProtectionCompleteUntilFirstUserAuthentication: string;
+  FileProtectionNone: string;
 };
 
 export type NativeUploadFileOptionsT = {
@@ -253,7 +267,7 @@ type TouchOptions = {
 };
 
 export interface Spec extends TurboModule {
-  readonly getConstants: () => {
+  getConstants(): {
     // System paths.
     CachesDirectoryPath: string;
     DocumentDirectoryPath: string;
@@ -281,15 +295,24 @@ export interface Spec extends TurboModule {
     PicturesDirectoryPath?: string; // also on Android!
     RoamingDirectoryPath?: string;
 
-    // NON-ANDROID-STUFF, AND NOT DOCUMENTED
-    FileProtectionKeys?: string;
+    // iOS-only, not documented yet.
+    FileProtectionKeys?: FileProtectionKeysT;
   };
 
-  addListener(event: string): void;
-  removeListeners(count: number): void;
+  readonly onDownloadBegin: CodegenTypes.EventEmitter<DownloadBeginCallbackResultT>;
+
+  readonly onDownloadProgress: CodegenTypes.EventEmitter<DownloadProgressCallbackResultT>;
+
+  readonly onDownloadResumable: CodegenTypes.EventEmitter<DownloadResumableCallbackResultT>;
+
+  readonly onUploadBegin: CodegenTypes.EventEmitter<UploadBeginCallbackArgT>;
+
+  readonly onUploadProgress: CodegenTypes.EventEmitter<UploadProgressCallbackArgT>;
+
+  getArrayBuffer(id: number): ArrayBuffer;
 
   // Common.
-  appendFile(path: string, b64: string): Promise<void>;
+  appendFile(path: string, data: ArrayBuffer): Promise<void>;
   copyFile(from: string, into: string, options: FileOptionsT): Promise<void>;
   downloadFile(options: NativeDownloadFileOptionsT): Promise<DownloadResultT>;
   exists(path: string): Promise<boolean>;
@@ -299,8 +322,8 @@ export interface Spec extends TurboModule {
   moveFile(from: string, into: string, options: FileOptionsT): Promise<void>;
   pickFile(options: PickFileOptionsT): Promise<string[]>;
 
-  read(path: string, length: number, position: number): Promise<string>;
-  readFile(path: string): Promise<string>;
+  read(path: string, length: number, position: number): Promise<number>;
+  readFile(path: string): Promise<number>;
 
   // TODO: Not sure about the type of result here.
   readDir(path: string): Promise<NativeReadDirResItemT[]>;
@@ -311,8 +334,13 @@ export interface Spec extends TurboModule {
   touch(path: string, options: TouchOptions): Promise<void>;
   unlink(path: string): Promise<void>;
   uploadFiles(options: NativeUploadFileOptionsT): Promise<UploadResultT>;
-  write(path: string, b64: string, position: number): Promise<void>;
-  writeFile(path: string, b64: string, options: FileOptionsT): Promise<void>;
+  write(path: string, data: ArrayBuffer, position: number): Promise<void>;
+
+  writeFile(
+    path: string,
+    data: ArrayBuffer,
+    options: FileOptionsT,
+  ): Promise<void>;
 
   // Android-specific.
   copyFileAssets(from: string, into: string): Promise<void>;
@@ -320,8 +348,8 @@ export interface Spec extends TurboModule {
   existsAssets(path: string): Promise<boolean>;
   existsRes(path: string): Promise<boolean>;
   getAllExternalFilesDirs(): Promise<string[]>;
-  readFileAssets(path: string): Promise<string>;
-  readFileRes(path: string): Promise<string>;
+  readFileAssets(path: string): Promise<number>;
+  readFileRes(path: string): Promise<number>;
   readDirAssets(path: string): Promise<NativeReadDirResItemT[]>;
   scanFile(path: string): Promise<string | null>;
 

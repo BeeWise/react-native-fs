@@ -1,5 +1,5 @@
 import { getReasonPhrase } from 'http-status-codes';
-import { type EmitterSubscription, NativeEventEmitter } from 'react-native';
+import type { EventSubscription } from 'react-native';
 
 import RNFS, {
   type DownloadBeginCallbackResultT,
@@ -8,6 +8,7 @@ import RNFS, {
   type DownloadResultT,
   type FSInfoResultT,
   type FileOptionsT,
+  type FileProtectionKeysT,
   type MkdirOptionsT,
   type NativeDownloadFileOptionsT,
   type NativeReadDirResItemT,
@@ -27,14 +28,12 @@ import RNFS, {
 import {
   type EncodingT,
   type EncodingOptions,
-  decode,
-  encode,
   normalizeFilePath,
   readFileGeneric,
+  toArrayBuffer,
   toEncoding,
+  decode,
 } from './utils';
-
-const nativeEventEmitter = new NativeEventEmitter(RNFS);
 
 let lastJobId = 0;
 
@@ -68,11 +67,12 @@ async function readDirGeneric(
 
 export function appendFile(
   filepath: string,
-  contents: string,
+  data: ArrayBuffer | string,
   encodingOrOptions?: EncodingOptions,
 ): Promise<void> {
-  const b64 = encode(contents, toEncoding(encodingOrOptions));
-  return RNFS.appendFile(normalizeFilePath(filepath), b64);
+  const path = normalizeFilePath(filepath);
+  const bytes = toArrayBuffer(data, encodingOrOptions);
+  return RNFS.appendFile(path, bytes);
 }
 
 export function copyFile(
@@ -140,11 +140,11 @@ export function downloadFile(options: DownloadFileOptionsT): {
   }
 
   const jobId = ++lastJobId;
-  const subscriptions: EmitterSubscription[] = [];
+  const subscriptions: EventSubscription[] = [];
 
   if (options.begin) {
     subscriptions.push(
-      nativeEventEmitter.addListener('DownloadBegin', res => {
+      RNFS.onDownloadBegin(res => {
         if (res.jobId === jobId && options.begin) options.begin(res);
       }),
     );
@@ -152,7 +152,7 @@ export function downloadFile(options: DownloadFileOptionsT): {
 
   if (options.progress) {
     subscriptions.push(
-      nativeEventEmitter.addListener('DownloadProgress', res => {
+      RNFS.onDownloadProgress(res => {
         if (res.jobId === jobId && options.progress) options.progress(res);
       }),
     );
@@ -160,7 +160,7 @@ export function downloadFile(options: DownloadFileOptionsT): {
 
   if (options.resumable) {
     subscriptions.push(
-      nativeEventEmitter.addListener('DownloadResumable', res => {
+      RNFS.onDownloadResumable(res => {
         if (res.jobId === jobId && options.resumable) options.resumable(res);
       }),
     );
@@ -238,9 +238,32 @@ export function pickFile(
   });
 }
 
-export type ReadFileOptionsT = {
-  encoding?: EncodingT;
+export type ReadFileOptionsT<E extends EncodingT = EncodingT> = {
+  encoding?: E;
 };
+
+export function read(
+  path: string,
+  length: number | undefined,
+  position: number | undefined,
+  encodingOrOptions: 'ArrayBuffer' | ReadFileOptionsT<'ArrayBuffer'>,
+): Promise<ArrayBuffer>;
+
+export function read(
+  path: string,
+  length?: number | undefined,
+  position?: number | undefined,
+  encodingOrOptions?:
+    | Exclude<EncodingT, 'ArrayBuffer'>
+    | ReadFileOptionsT<Exclude<EncodingT, 'ArrayBuffer'>>,
+): Promise<string>;
+
+export function read(
+  path: string,
+  length?: number,
+  position?: number,
+  encodingOrOptions?: EncodingT | ReadFileOptionsT,
+): Promise<ArrayBuffer | string>;
 
 export async function read(
   path: string,
@@ -249,15 +272,34 @@ export async function read(
   length: number = 0,
   position: number = 0,
   encodingOrOptions?: EncodingT | ReadFileOptionsT,
-): Promise<string> {
-  const b64 = await RNFS.read(normalizeFilePath(path), length, position);
-  return decode(b64, toEncoding(encodingOrOptions));
+): Promise<ArrayBuffer | string> {
+  const id = await RNFS.read(normalizeFilePath(path), length, position);
+  const bytes = RNFS.getArrayBuffer(id);
+  const encoding = toEncoding(encodingOrOptions);
+  return encoding === 'ArrayBuffer' ? bytes : decode(bytes, encoding);
 }
 
 export function readFile(
   path: string,
+  encodingOrOptions: 'ArrayBuffer' | ReadFileOptionsT<'ArrayBuffer'>,
+): Promise<ArrayBuffer>;
+
+export function readFile(
+  path: string,
+  encodingOrOptions?:
+    | Exclude<EncodingT, 'ArrayBuffer'>
+    | ReadFileOptionsT<Exclude<EncodingT, 'ArrayBuffer'>>,
+): Promise<string>;
+
+export function readFile(
+  path: string,
   encodingOrOptions?: EncodingT | ReadFileOptionsT,
-): Promise<string> {
+): Promise<ArrayBuffer | string>;
+
+export function readFile(
+  path: string,
+  encodingOrOptions?: EncodingT | ReadFileOptionsT,
+): Promise<ArrayBuffer | string> {
   return readFileGeneric(path, encodingOrOptions, RNFS.readFile);
 }
 
@@ -317,7 +359,7 @@ export function uploadFiles(options: UploadFileOptionsT): {
   promise: Promise<UploadResultT>;
 } {
   const jobId = ++lastJobId;
-  const subscriptions: EmitterSubscription[] = [];
+  const subscriptions: EventSubscription[] = [];
 
   if (typeof options !== 'object') {
     throw new Error('uploadFiles: Invalid value for argument `options`');
@@ -339,34 +381,30 @@ export function uploadFiles(options: UploadFileOptionsT): {
   }
 
   if (options.begin) {
-    subscriptions.push(
-      nativeEventEmitter.addListener('UploadBegin', options.begin),
-    );
+    subscriptions.push(RNFS.onUploadBegin(options.begin));
+
+    // TODO: Deprecated, will be removed in a future release.
   } else if (options.beginCallback) {
-    // Deprecated
-    subscriptions.push(
-      nativeEventEmitter.addListener('UploadBegin', options.beginCallback),
-    );
+    subscriptions.push(RNFS.onUploadBegin(options.beginCallback));
   }
 
   if (options.progress) {
-    subscriptions.push(
-      nativeEventEmitter.addListener('UploadProgress', options.progress),
-    );
+    subscriptions.push(RNFS.onUploadProgress(options.progress));
+
+    // TODO: Deprecated, will be removed in a future release.
   } else if (options.progressCallback) {
-    // Deprecated
-    subscriptions.push(
-      nativeEventEmitter.addListener(
-        'UploadProgress',
-        options.progressCallback,
-      ),
-    );
+    subscriptions.push(RNFS.onUploadProgress(options.progressCallback));
   }
+
+  const files = options.files.map(item => ({
+    ...item,
+    name: item.name ?? item.filename,
+  }));
 
   var nativeOptions: NativeUploadFileOptionsT = {
     jobId: jobId,
     toUrl: options.toUrl,
-    files: options.files,
+    files,
     binaryStreamOnly: options.binaryStreamOnly || false,
     headers: options.headers || {},
     fields: options.fields || {},
@@ -397,12 +435,13 @@ export function uploadFiles(options: UploadFileOptionsT): {
 
 export function write(
   filepath: string,
-  contents: string,
+  data: ArrayBuffer | string,
   position: number = -1,
   encodingOrOptions?: EncodingOptions,
 ): Promise<void> {
-  const b64 = encode(contents, toEncoding(encodingOrOptions));
-  return RNFS.write(normalizeFilePath(filepath), b64, position);
+  const path = normalizeFilePath(filepath);
+  const bytes = toArrayBuffer(data, toEncoding(encodingOrOptions));
+  return RNFS.write(path, bytes, position);
 }
 
 type WriteFileOptionsT = {
@@ -412,13 +451,14 @@ type WriteFileOptionsT = {
 
 export function writeFile(
   path: string,
-  content: string,
+  data: ArrayBuffer | string,
   encodingOrOptions?: EncodingT | WriteFileOptionsT,
 ): Promise<void> {
-  const b64 = encode(content, toEncoding(encodingOrOptions));
+  const p = normalizeFilePath(path);
+  const bytes = toArrayBuffer(data, toEncoding(encodingOrOptions));
   return RNFS.writeFile(
-    normalizeFilePath(path),
-    b64,
+    p,
+    bytes,
     typeof encodingOrOptions === 'object' ? encodingOrOptions : {},
   );
 }
@@ -459,15 +499,45 @@ export async function readDirAssets(
 
 export function readFileAssets(
   path: string,
+  encodingOrOptions: EncodingOptions<'ArrayBuffer'>,
+): Promise<ArrayBuffer>;
+
+export function readFileAssets(
+  path: string,
+  encodingOrOptions?: EncodingOptions<Exclude<EncodingT, 'ArrayBuffer'>>,
+): Promise<string>;
+
+export function readFileAssets(
+  path: string,
   encodingOrOptions?: EncodingOptions,
-): Promise<string> {
+): Promise<ArrayBuffer | string>;
+
+export function readFileAssets(
+  path: string,
+  encodingOrOptions?: EncodingOptions,
+): Promise<ArrayBuffer | string> {
   return readFileGeneric(path, encodingOrOptions, RNFS.readFileAssets);
 }
 
 export function readFileRes(
   filename: string,
+  encodingOrOptions: EncodingOptions<'ArrayBuffer'>,
+): Promise<ArrayBuffer>;
+
+export function readFileRes(
+  filename: string,
+  encodingOrOptions?: EncodingOptions<Exclude<EncodingT, 'ArrayBuffer'>>,
+): Promise<string>;
+
+export function readFileRes(
+  filename: string,
   encodingOrOptions?: EncodingOptions,
-): Promise<string> {
+): Promise<ArrayBuffer | string>;
+
+export function readFileRes(
+  filename: string,
+  encodingOrOptions?: EncodingOptions,
+): Promise<ArrayBuffer | string> {
   return readFileGeneric(filename, encodingOrOptions, RNFS.readFileRes);
 }
 
@@ -560,6 +630,7 @@ export {
   type DownloadResultT,
   type EncodingT,
   type FileOptionsT,
+  type FileProtectionKeysT,
   type FSInfoResultT,
   type MkdirOptionsT,
   type ReadDirAssetsResItemT,
