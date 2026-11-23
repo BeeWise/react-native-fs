@@ -123,5 +123,8 @@
       "namespace": "ReactNativeFs",
       "template": "cpp-lib"
     }
+  },
+    "swiftpmConfig": {
+    "name": "ReactNativeFs"
   }
 }
